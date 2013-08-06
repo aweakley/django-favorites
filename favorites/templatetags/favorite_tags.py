@@ -1,6 +1,5 @@
 from django import template
 from django.contrib.contenttypes.models import ContentType
-from django.core.urlresolvers import reverse
 from django.template import Node
 from django.template import TemplateSyntaxError
 from django.template import Variable
@@ -9,6 +8,7 @@ from favorites.models import Favorite
 
 register = template.Library()
 
+
 @register.filter
 def is_favorite(object, user):
     """
@@ -16,11 +16,11 @@ def is_favorite(object, user):
     """
     if not user or not user.is_authenticated():
         return False
-    return Favorite.objects.favorites_for_object(object, user).count()>0
+    return Favorite.objects.favorites_for_object(object, user).count() > 0
 
 
-@register.inclusion_tag("favorites/favorite_add_remove.html")
-def add_remove_favorite(object, user):
+@register.inclusion_tag("favorites/favorite_add_remove.html", takes_context=True)
+def add_remove_favorite(context, object, user):
     favorite = None
     content_type = ContentType.objects.get_for_model(object)
     if user.is_authenticated():
@@ -30,12 +30,12 @@ def add_remove_favorite(object, user):
         else:
             favorite = None
     count = Favorite.objects.favorites_for_object(object).count()
-            
+
     return {"object_id": object.pk,
             "content_type_id": content_type.pk,
             "is_favorite":favorite,
-            "count": count}
-    
+            "count": count,
+            "request": context['request']}
 class FavoritesForObjectsNode(Node):
     def __init__(self, object_list, user, context_var):
         self.object_list = Variable(object_list)
@@ -59,7 +59,6 @@ def do_favorites_for_objects(parser, token):
         raise TemplateSyntaxError(_("third argument to %s tag must be 'as'") % bits[0])
     return FavoritesForObjectsNode(bits[1], bits[2], bits[4])
 register.tag('favorites_for_objects', do_favorites_for_objects)
-    
 class FavoriteEntryForItemNode(template.Node):
     def __init__(self, item, dictionary, context_var):
         self.item = item
