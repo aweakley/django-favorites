@@ -7,7 +7,7 @@ from forms import DeleteFavoriteForm
 from django.http import HttpResponse
 from django.utils import simplejson
 
-@login_required
+
 def ajax_add_favorite(request):
     """ Adds favourite returns Http codes"""
     if request.method == "POST":
@@ -17,12 +17,12 @@ def ajax_add_favorite(request):
 
         # check if it was created already
         if Favorite.objects.filter(content_type=content_type, object_id=object_id,\
-                                  user=request.user):
+                                  session=request.session):
             # return conflict response code if already satisfied
             return HttpResponse(status=409)
         
         #if not create it
-        favorite = Favorite.objects.create_favorite(obj, request.user)
+        favorite = Favorite.objects.create_favorite(obj, request.session)
         count = Favorite.objects.favorites_for_object(obj).count()
         return HttpResponse(simplejson.dumps({'count': count}),
                             'application/javascript',
@@ -30,8 +30,7 @@ def ajax_add_favorite(request):
     else:
         return HttpResponse(status=405)
         
-        
-@login_required
+
 def ajax_remove_favorite(request):
     """ Adds favourite returns Http codes"""
     if request.method == "POST":
@@ -40,7 +39,7 @@ def ajax_remove_favorite(request):
                                        pk=request.POST.get("content_type_id"))
         favorite = get_object_or_404(Favorite, object_id=object_id,
                                                content_type=content_type,
-                                               user=request.user)
+                                               session=request.session)
         favorite.delete()
         obj = content_type.get_object_for_this_type(pk=object_id)
         count = Favorite.objects.favorites_for_object(obj).count()
@@ -51,7 +50,6 @@ def ajax_remove_favorite(request):
         return HttpResponse(status=405)
     
     
-@login_required
 def create_favorite(request, object_id, queryset, redirect_to=None,
         template_name=None, extra_context=None):
     """
@@ -73,14 +71,13 @@ def create_favorite(request, object_id, queryset, redirect_to=None,
     content_type=ContentType.objects.get_for_model(obj)
 
     if Favorite.objects.filter(content_type=content_type, object_id=object_id,\
-                              user=request.user):
+                              session=request.session):
         return redirect(redirect_to or 'favorites')
 
-    favorite = Favorite.objects.create_favorite(obj, request.user)
+    favorite = Favorite.objects.create_favorite(obj, request.session)
     return redirect(redirect_to or 'favorites')
 
 
-@login_required
 def delete_favorite(request, object_id, form_class=None, redirect_to=None,
            template_name=None, extra_context=None):
     """
@@ -99,7 +96,7 @@ def delete_favorite(request, object_id, form_class=None, redirect_to=None,
     `extra_context` - provide extra context if needed
     """
 
-    favorite = get_object_or_404(Favorite, pk=object_id, user=request.user)
+    favorite = get_object_or_404(Favorite, pk=object_id, session=request.session)
     form_class = form_class or DeleteFavoriteForm
 
     if request.method == 'POST':
@@ -117,7 +114,7 @@ def delete_favorite(request, object_id, form_class=None, redirect_to=None,
     return render_to_response(template_name or 'favorites/favorite_delete.html',
             RequestContext(request, ctx))
 
-@login_required
+
 def drop_favorite(request, object_id, redirect_to=None):
-    Favorite.objects.filter(pk=object_id, user=request.user).delete()
+    Favorite.objects.filter(pk=object_id, session=request.session).delete()
     return redirect(redirect_to or request.META.get('HTTP_REFERER', 'favorites'))

@@ -10,25 +10,24 @@ register = template.Library()
 
 
 @register.filter
-def is_favorite(object, user):
+def is_favorite(object, session):
     """
     Returns True, if object is already in user`s favorite list
     """
-    if not user or not user.is_authenticated():
+    if not session:
         return False
-    return Favorite.objects.favorites_for_object(object, user).count() > 0
+    return Favorite.objects.favorites_for_object(object, session).count() > 0
 
 
 @register.inclusion_tag("favorites/favorite_add_remove.html", takes_context=True)
-def add_remove_favorite(context, object, user):
+def add_remove_favorite(context, object, session):
     favorite = None
     content_type = ContentType.objects.get_for_model(object)
-    if user.is_authenticated():
-        favorite = Favorite.objects.favorites_for_object(object, user=user)
-        if favorite:
-            favorite = favorite[0]
-        else:
-            favorite = None
+    favorite = Favorite.objects.favorites_for_object(object, session=session)
+    if favorite:
+        favorite = favorite[0]
+    else:
+        favorite = None
     count = Favorite.objects.favorites_for_object(object).count()
 
     return {"object_id": object.pk,
@@ -36,16 +35,18 @@ def add_remove_favorite(context, object, user):
             "is_favorite":favorite,
             "count": count,
             "request": context['request']}
+
 class FavoritesForObjectsNode(Node):
-    def __init__(self, object_list, user, context_var):
+    def __init__(self, object_list, session, context_var):
         self.object_list = Variable(object_list)
-        self.user = Variable(user)
+        self.session = Variable(session)
         self.context_var = context_var
 
     def render(self, context):
         object_list = self.object_list.resolve(context)
-        user = self.user.resolve(context)
-        context[self.context_var] = Favorite.objects.favorites_for_objects(object_list, user)
+        session = self.session.resolve(context)
+        context[self.context_var] = Favorite.objects.favorites_for_objects(
+            object_list, session)
         return ''
     
 def do_favorites_for_objects(parser, token):
@@ -59,6 +60,8 @@ def do_favorites_for_objects(parser, token):
         raise TemplateSyntaxError(_("third argument to %s tag must be 'as'") % bits[0])
     return FavoritesForObjectsNode(bits[1], bits[2], bits[4])
 register.tag('favorites_for_objects', do_favorites_for_objects)
+
+
 class FavoriteEntryForItemNode(template.Node):
     def __init__(self, item, dictionary, context_var):
         self.item = item
@@ -73,6 +76,7 @@ class FavoriteEntryForItemNode(template.Node):
             return ''
         context[self.context_var] = dictionary.get("%s" % item.id, None)
         return ''
+
 
 def do_favorite_entry_for_item(parser, token):
     """

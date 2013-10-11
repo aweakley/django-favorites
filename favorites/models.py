@@ -1,3 +1,4 @@
+from django.contrib.sessions.models import Session
 from django.db import models, connection
 from django.dispatch import receiver
 from django.contrib.auth.models import User
@@ -8,32 +9,31 @@ from django.contrib.contenttypes import generic
 class FavoriteManager(models.Manager):
     """ A Manager for Favorites
     """
-    def favorites_for_user(self, user):
-        """ Returns Favorites for a specific user
-        """
-        return self.get_query_set().filter(user=user)
-    
-    def favorites_for_model(self, model, user=None):
+
+    def favourites_for_session(self, session):
+        return self.get_query_set().filer(session=session)
+
+    def favorites_for_model(self, model, session=None):
         """ Returns Favorites for a specific model
         """
         content_type = ContentType.objects.get_for_model(model)
         qs = self.get_query_set().filter(content_type=content_type)
-        if user:
-            qs = qs.filter(user=user)
+        if session:
+            qs = qs.filter(session=session)
         return qs
 
-    def favorites_for_object(self, obj, user=None):
+    def favorites_for_object(self, obj, session=None):
         """ Returns Favorites for a specific object
         """
         content_type = ContentType.objects.get_for_model(type(obj))
         qs = self.get_query_set().filter(content_type=content_type, 
                                          object_id=obj.pk)
-        if user:
-            qs = qs.filter(user=user)
+        if session:
+            qs = qs.filter(session=session)
 
         return qs
 
-    def favorites_for_objects(self, object_list, user=None):
+    def favorites_for_objects(self, object_list, session=None):
         """
         Get a dictionary mapping object ids to favorite
         of votes for each object.
@@ -52,25 +52,25 @@ class FavoriteManager(models.Manager):
             results.setdefault(c['object_id'], {})['count'] = c['count']
             results.setdefault(c['object_id'], {})['is_favorite'] = False
             results.setdefault(c['object_id'], {})['content_type_id'] = content_type.id
-        if user and user.is_authenticated():
-            qs = qs.filter(user=user)
+        if session:
+            qs = qs.filter(session=session)
             for f in qs:
                 results.setdefault(f.object_id, {})['is_favorite'] = True
 
         return results
 
-    def favorite_for_user(self, obj, user):
-        """Returns the favorite, if exists for obj by user
+    def favorite_for_session(self, obj, session):
+        """Returns the favorite, if exists for obj by session
         """
         content_type = ContentType.objects.get_for_model(type(obj))
         return self.get_query_set().get(content_type=content_type,
-                                    user=user, object_id=obj.pk)
+                                    session=session, object_id=obj.pk)
 
     @classmethod
-    def create_favorite(cls, content_object, user):
+    def create_favorite(cls, content_object, session):
         content_type = ContentType.objects.get_for_model(type(content_object))
         favorite = Favorite(
-            user=user,
+            session=session,
             content_type=content_type,
             object_id=content_object.pk,
             content_object=content_object
@@ -79,7 +79,7 @@ class FavoriteManager(models.Manager):
         return favorite
 
 class Favorite(models.Model):
-    user = models.ForeignKey(User)
+    session = models.ForeignKey(Session)
     content_type = models.ForeignKey(ContentType)
     object_id = models.TextField(_('object ID'))
     content_object = generic.GenericForeignKey('content_type', 'object_id')
